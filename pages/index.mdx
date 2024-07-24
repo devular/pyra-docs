@@ -1,11 +1,33 @@
-# Introduction
- 
-Welcome to Nextra! This is a basic docs template. You can use it as a starting point for your own project :)
+# Introduction to Pyra.run
 
-## What is Nextra?
+Welcome to Pyra.run! This is your gateway to modern Next.js deployments on your own server.
 
-A **simple**, **powerful** and **flexible** site generation framework with everything you love from Next.js.
+## What is Pyra.run?
 
-## Documentation
+Pyra.run is a **powerful**, **efficient**, and **cost-effective** deployment solution that brings the simplicity of platform-as-a-service to your own virtual private server (VPS). With Pyra.run, you can:
 
-The documentation is available at [https://nextra.site](https://nextra.site).
+- Deploy Next.js applications with **zero downtime**
+- Use your **own VPS** without the need for expensive PaaS solutions
+- Enjoy **automatic SSL configuration** with Let's Encrypt
+- Leverage **Github Actions** for continuous deployment
+- Pay **once** and deploy unlimited times
+
+## Key Features
+
+- **Push to Run**: Deploy your app with every commit pushed to Github. No PaaS, no container registries.
+- **Zero Downtime Deployments**: Pyra configures Traefik & Docker to boot new instances of your app before stopping the previous version.
+- **Simple Install**: Just add one workflow file to your repo and one line to your `next.config.js`.
+- **Environment Variable Driven**: Configure your entire deployment through Github Secrets.
+- **HTTPS Out of the Box**: Automatic SSL certificate provisioning and renewal.
+- **Instant Rollbacks**: Re-run a Github Action to redeploy at any previous commit.
+
+## Getting Started
+
+To start using Pyra.run, you'll need:
+
+1. A Next.js application repository on Github
+2. Your own VPS (Virtual Private Server)
+3. SSH access to your VPS
+4. A Github account
+
+Let's get your Next.js app deployed with Pyra.run!

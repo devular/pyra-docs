@@ -1,0 +1,152 @@
+import { Callout } from "nextra/components";
+
+# Setting up your VPS
+
+Before you can deploy your Next.js application with Pyra.run, you need to set up your Virtual Private Server (VPS). This guide will walk you through the essential steps to prepare your server for Pyra.run deployments.
+
+This is the longest and most technical guide in the entire documentation. But it doesn't take much longer than creating a deployment on Runway, Vercel, Heroku or Netlify.
+
+## Prerequisites
+
+- A VPS from any provider (e.g., DigitalOcean, Linode, AWS EC2, etc.)
+- SSH access to your VPS
+- Basic knowledge of command-line operations
+
+## Step 1: Connect to Your VPS
+
+First, connect to your VPS using SSH:
+
+```bash
+ssh username@your_server_ip
+```
+
+Replace `username` with your server username and `your_server_ip` with your server's IP address.
+
+## Step 2: Update Your System
+
+It's important to ensure your system is up to date:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+## Step 3: Set Up Firewall (Optional but Recommended)
+
+If your VPS doesn't have a firewall configured, you can set up UFW (Uncomplicated Firewall):
+
+```bash
+sudo apt install ufw
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+## Step 4: Create a Non-Root User (Optional but Recommended)
+
+If you haven't already, create a non-root user with sudo privileges:
+
+```bash
+sudo adduser pyrauser
+sudo usermod -aG sudo pyrauser
+```
+
+(Optional: Replace pyrauser with your preferred username)
+
+## Step 5: Set Up SSH Key Authentication
+
+Your VPS may let you do this automatically when you provision it, but if not, you can set up SSH key authentication:
+
+<Callout emoji="⚠️">
+  Important Note for New Users: The SSH key generation process described below
+  should be performed on your local machine, not on the VPS. The generated
+  public key will be copied to the VPS, while the private key remains on your
+  local machine. This process applies whether you're using the root user or a
+  non-root sudo user. If you've created a non-root user (as in Step 4), you'll
+  use that username when copying the public key to the server and when
+  connecting via SS
+</Callout>
+
+### 1. On your local machine, generate an SSH key pair if you haven't already:
+
+```bash
+ssh-keygen -t ed25519 -C "your_email@example.com"
+```
+
+(Replace your_email@example.com with your email address)
+
+### 2. Copy the public key to your VPS:
+
+```bash
+ssh-copy-id -i ~/.ssh/id_ed25519.pub username@your_server_ip
+```
+
+### 3. Disable password authentication:
+
+```bash
+sudo nano /etc/ssh/sshd_config
+```
+
+Find the line PasswordAuthentication yes and change it to PasswordAuthentication no.
+
+### 4. Restart the SSH service:
+
+```bash
+sudo systemctl restart ssh
+```
+
+### 5. Test the SSH connection:
+
+```bash
+ssh username@your_server_ip
+```
+
+(Replace username with your server username and your_server_ip with your server's IP address)
+
+Once connected, you should see a prompt like this:
+
+```bash
+username@your_server_ip:~$
+```
+
+Or you can run the command to check the server's IP address:
+
+```bash
+hostname -I
+82.165.204.10
+```
+
+## Step 6: Prepare SSH Key for Github
+
+1. Display your private key:
+
+```bash
+cat ~/.ssh/id_ed25519
+```
+
+2. Copy the entire output, including the `-----BEGIN OPENSSH PRIVATE KEY-----` and `-----END OPENSSH PRIVATE KEY-----` lines.
+
+3. In your Github _repository_, go to Settings > Secrets and variables > Actions.
+
+4. Create a new repository secret named `SSH_PRIVATE_KEY` and paste the copied private key as its value.
+
+5. If you set a passphrase for your SSH key, create another secret named `SSH_PASSPHRASE` and set its value to your passphrase.
+
+## Conclusion
+
+Your VPS is now set up and ready for Pyra.run deployments. You have:
+
+Updated your system
+Set up a firewall
+Created a non-root user (optional)
+Configured SSH key authentication
+Prepared your SSH key for use with Github Actions
+Make sure you have noted down:
+
+Your server's IP address
+The username you'll use for SSH access
+Your SSH private key (added as a Github secret)
+Your SSH passphrase (if set, added as a Github secret)
+You'll need these for configuring your Github Actions workflow in the next steps.
+
+Next, head over to the Configuration guide to set up your Github repository for Pyra.run deployments.

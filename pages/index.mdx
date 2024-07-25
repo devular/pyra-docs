@@ -1,6 +1,39 @@
+import { FileTree } from "nextra/components";
+
 # Introduction to Pyra.run
 
 Welcome to Pyra.run! This is your gateway to modern Next.js deployments on your own server.
+
+## How does it work?
+
+Pyra.run is powered by Github Actions. Whenever you push to your Github repository, Pyra.run will automatically deploy your Next.js application to your VPS. With Zero Downtime Deployments, you can be sure that your application will always be available.
+
+All you have to do, is go from this:
+
+<FileTree>
+  <FileTree.Folder name="my-next-app" defaultOpen>
+    <FileTree.File name="package.json" />
+    <FileTree.File name="next.config.js" />
+    <FileTree.Folder name="pages" />
+    <FileTree.Folder name="public" />
+  </FileTree.Folder>
+</FileTree>
+
+To this:
+
+<FileTree>
+  <FileTree.Folder name="my-next-app" defaultOpen>
+    <FileTree.Folder name=".github" defaultOpen>
+      <FileTree.Folder name="workflows" defaultOpen>
+        <FileTree.File name="pyra.yml" />
+      </FileTree.Folder>
+    </FileTree.Folder>
+    <FileTree.File name="package.json" />
+    <FileTree.File name="next.config.js" />
+    <FileTree.Folder name="pages" />
+    <FileTree.Folder name="public" />
+  </FileTree.Folder>
+</FileTree>
 
 ## What is Pyra.run?
 

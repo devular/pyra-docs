@@ -1,6 +1,10 @@
 {
-  "index": "Introduction",
-  "getting-started": "Getting Started",
+  "buy": {
+    "title": "Get Pyra ↗",
+    "type": "page",
+    "href": "https://pyra.run/",
+    "newWindow": true
+  },
   "about": {
     "title": "About",
     "type": "page"
@@ -10,5 +14,7 @@
     "type": "page",
     "href": "https://twitter.com/jshez",
     "newWindow": true
-  }
+  },
+  "index": "Introduction",
+  "getting-started": "Getting Started"
 }

@@ -11,6 +11,61 @@ env:
   SSH_AUTH_SOCK: /tmp/ssh_agent.sock
 
 jobs:
+  debug-ssh-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate key structure
+        env:
+          PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+        run: |
+          start_line=$(printf '%s' "$PYRA_SSH_PRIVATE_KEY" | sed -n '1p')
+          end_line=$(printf '%s' "$PYRA_SSH_PRIVATE_KEY" | sed -n '$p')
+          printf "Key starts with: %.27s...\n" "$start_line"
+          printf "Key ends with: ...%.24s\n" "$end_line"
+          case "$start_line" in
+            "-----BEGIN "*)
+              case "$end_line" in
+                "-----END "*)
+                  echo "Key appears to have correct start and end markers"
+                  ;;
+                *)
+                  echo "Key may be missing proper end marker"
+                  ;;
+              esac
+              ;;
+            *)
+              echo "Key may be missing proper start marker"
+              ;;
+          esac
+
+      - name: Attempt to use ssh-add
+        env:
+          PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+        run: |
+          eval "$(ssh-agent -s)"
+          printf '%s' "$PYRA_SSH_PRIVATE_KEY" | ssh-add - || echo "ssh-add failed"
+
+      - name: Check OpenSSL and SSH versions
+        run: |
+          openssl version
+          ssh -V
+
+      - name: Check SSH key type
+        env:
+          PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+        run: |
+          key_type=$(printf '%s' "$PYRA_SSH_PRIVATE_KEY" | sed -n 's/^-----BEGIN \(.*\) PRIVATE KEY-----$/\1/p')
+          echo "Key type appears to be: $key_type"
+
+      - name: Check key format and fingerprint
+        env:
+          PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+        run: |
+          printf '%s' "$PYRA_SSH_PRIVATE_KEY" > debug_key
+          chmod 600 debug_key
+          echo "Key fingerprint and length:"
+          ssh-keygen -l -f debug_key || echo "Failed to read key"
+          rm debug_key
   Deploy:
     environment: pyra.run production
     runs-on: ubuntu-latest
@@ -65,48 +120,6 @@ jobs:
             fi
           fi
         shell: sh -e {0}
-
-      - name: Check SSH key format and fingerprint
-        env:
-          PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
-        run: |
-          echo "$PYRA_SSH_PRIVATE_KEY" > debug_key
-          chmod 600 debug_key
-          echo "Key fingerprint and length:"
-          ssh-keygen -l -f debug_key || echo "Failed to read key"
-          rm debug_key
-
-      - name: Validate key structure
-        env:
-          PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
-        run: |
-          start_line=$(echo "$PYRA_SSH_PRIVATE_KEY" | head -n 1)
-          end_line=$(echo "$PYRA_SSH_PRIVATE_KEY" | tail -n 1)
-          echo "Key starts with: ${start_line:0:27}..."
-          echo "Key ends with: ...${end_line: -24}"
-          if [[ "$start_line" == "-----BEGIN "* ]] && [[ "$end_line" == "-----END "* ]]; then
-            echo "Key appears to have correct start and end markers"
-          else
-            echo "Key may be missing proper start or end markers"
-          fi
-      - name: Attempt to use ssh-add
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
-        run: |
-          eval "$(ssh-agent -s)"
-          echo "$PYRA_SSH_PRIVATE_KEY" | ssh-add - || echo "ssh-add failed"
-
-      - name: Check OpenSSL and SSH versions
-        run: |
-          openssl version
-          ssh -V
-
-      - name: Check SSH key type
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
-        run: |
-          key_type=$(echo "$PYRA_SSH_PRIVATE_KEY" | grep -o 'BEGIN.*PRIVATE KEY' | cut -d' ' -f2)
-          echo "Key type appears to be: $key_type"
 
       - name: Setting up SSH conditionally
         run: |

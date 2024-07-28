@@ -9,3 +9,5 @@ Contributions are welcome! Please submit a pull request with your changes.
 ## Nextra
 
 This documentation is built with [Nextra](https://nextra.site), a framework for creating documentation sites with Markdown.
+
+## Adding a new commit just in case

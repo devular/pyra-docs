@@ -35,15 +35,15 @@ services:
     platform: linux/amd64
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.${APP_NAME}.rule=Host(`${PYRA_DOMAIN}`)"
-      - "traefik.http.routers.${APP_NAME}.entrypoints=web"
-      - "traefik.http.routers.${APP_NAME}.middlewares=pyra-redirectscheme"
+      - "traefik.http.routers.${PYRA_APP_NAME}.rule=Host(`${PYRA_DOMAIN}`)"
+      - "traefik.http.routers.${PYRA_APP_NAME}.entrypoints=web"
+      - "traefik.http.routers.${PYRA_APP_NAME}.middlewares=pyra-redirectscheme"
       - "traefik.http.middlewares.pyra-redirectscheme.redirectscheme.scheme=https"
       - "traefik.http.middlewares.pyra-redirectscheme.redirectscheme.port=443"
-      - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=3000"
-      - "traefik.http.routers.${APP_NAME}-secure.entrypoints=websecure"
-      - "traefik.http.routers.${APP_NAME}-secure.rule=Host(`${PYRA_DOMAIN}`)"
-      - "traefik.http.routers.${APP_NAME}-secure.tls.certresolver=pyra-cert-resolver"
+      - "traefik.http.services.${PYRA_APP_NAME}.loadbalancer.server.port=3000"
+      - "traefik.http.routers.${PYRA_APP_NAME}-secure.entrypoints=websecure"
+      - "traefik.http.routers.${PYRA_APP_NAME}-secure.rule=Host(`${PYRA_DOMAIN}`)"
+      - "traefik.http.routers.${PYRA_APP_NAME}-secure.tls.certresolver=pyra-cert-resolver"
     depends_on:
       - traefik
     networks:

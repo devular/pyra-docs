@@ -67,7 +67,7 @@ jobs:
           ssh-keygen -l -f debug_key || echo "Failed to read key"
           rm debug_key
   Deploy:
-    environment: pyra.run production
+    environment: docs.pyra.run production
     runs-on: ubuntu-latest
     container:
       image: pyrarun/action-container

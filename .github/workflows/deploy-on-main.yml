@@ -220,6 +220,9 @@ jobs:
           echo "DOCKER_IMAGE_NAME=${{ secrets.PYRA_APP_NAME }}:${{ github.sha }}" >> .env
           echo "DOCKER_IMAGE_FILE_NAME=${{ secrets.PYRA_APP_NAME }}_${{ github.sha }}.tar" >> .env
 
+      - name: List files in the current directory
+        run: ls -la
+
       - name: Build Docker image
         env:
           PYRA_APP_NAME: ${{ secrets.PYRA_APP_NAME }}

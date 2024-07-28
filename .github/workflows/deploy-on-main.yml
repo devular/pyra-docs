@@ -1,0 +1,287 @@
+name: Pyra.run Next.js Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  DOCKER_BUILDKIT: 1
+  PYRA_SERVER_IP: ${{ secrets.PYRA_SERVER_IP }}
+  SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+
+jobs:
+  Deploy:
+    environment: pyra.run production
+    runs-on: ubuntu-latest
+    container:
+      image: pyrarun/action-container
+      env:
+        DOCKER_IMAGE_NAME: ${{secrets.PYRA_APP_NAME}}:${{ github.sha }}
+        DOCKER_IMAGE_FILE_NAME: ${{secrets.PYRA_APP_NAME}}_${{ github.sha }}
+        PYRA_APP_NAME: ${{ secrets.PYRA_APP_NAME }}
+        PYRA_SSH_PASSPHRASE: ${{ secrets.PYRA_SSH_PASSPHRASE }}
+        PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+        NEXT_PUBLIC_APP_NAME: ${{ secrets.NEXT_PUBLIC_APP_NAME }}
+        NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+        PYRA_SSH_USERNAME: ${{ secrets.PYRA_SSH_USERNAME }}
+        NODE_ENV: ${{ secrets.NODE_ENV }}
+        PYRA_SSL_EMAIL: ${{ secrets.PYRA_SSL_EMAIL }}
+        PYRA_DOMAIN: ${{ secrets.PYRA_DOMAIN }}
+
+    steps:
+      - name: Mark workspace directory as safe
+        shell: bash
+        run: git config --global --add safe.directory ${GITHUB_WORKSPACE}
+
+      - name: Checking out code
+        uses: actions/checkout@v3.0.0
+
+      - name: Validate Hook Scripts
+        run: |
+          valid_hooks="pre_deploy.sh pre_run.sh post_run.sh post_deploy.sh migrate.sh"
+          invalid_hooks=""
+
+          if [ -d ".pyra" ]; then
+            for file in .pyra/*; do
+              filename=$(basename "$file")
+              is_valid=false
+              for valid_hook in $valid_hooks; do
+                if [ "$filename" = "$valid_hook" ]; then
+                  is_valid=true
+                  break
+                fi
+              done
+              if [ "$is_valid" = false ]; then
+                invalid_hooks="$invalid_hooks $filename"
+              fi
+            done
+
+            if [ -n "$invalid_hooks" ]; then
+              echo "Error: Invalid hook script(s) found in .pyra directory:"
+              echo "$invalid_hooks"
+              echo "Valid hook scripts are: $valid_hooks"
+              exit 1
+            fi
+          fi
+        shell: sh -e {0}
+
+      - name: Setting up SSH conditionally
+        run: |
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+          if [ -z "$PYRA_SSH_PASSPHRASE" ]; then
+              echo "No passphrase set, adding SSH key without passphrase"
+              echo "$PYRA_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+          else
+              echo "Passphrase detected, setting up SSH_ASKPASS"
+              echo "echo $PYRA_SSH_PASSPHRASE" > ~/.ssh/ssh_askpass
+              chmod +x ~/.ssh/ssh_askpass
+              export SSH_ASKPASS=~/.ssh/ssh_askpass
+              echo "$PYRA_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+          fi
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+          PYRA_SSH_PASSPHRASE: ${{ secrets.PYRA_SSH_PASSPHRASE }}
+          PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+
+      - name: Run Kamal Server Bootstrap to install docker
+        run: |
+          /bin/bash -c "kamal server bootstrap"
+
+      - name: Initialize Let's Encrypt Certificate Directory
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.PYRA_SERVER_IP }}
+          username: ${{ secrets.PYRA_SSH_USERNAME }}
+          key: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+          script: |
+            if [ ! -d "/pyra-apps/${{ secrets.PYRA_APP_NAME }}/letsencrypt" ] || [ ! -f "/pyra-apps/${{ secrets.PYRA_APP_NAME }}/letsencrypt/acme.json" ]; then
+                mkdir -p /pyra-apps/${{ secrets.PYRA_APP_NAME }}/letsencrypt
+                touch /pyra-apps/${{ secrets.PYRA_APP_NAME }}/letsencrypt/acme.json
+                chmod -R 600 /pyra-apps/${{ secrets.PYRA_APP_NAME }}/letsencrypt
+                chown -R 1001:1001 /pyra-apps/${{ secrets.PYRA_APP_NAME }}/letsencrypt
+            else
+                echo "letsencrypt directory and acme.json already exist. Skipping creation."
+            fi
+
+      - name: Initialize Database Directory and File
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.PYRA_SERVER_IP }}
+          username: ${{ secrets.PYRA_SSH_USERNAME }}
+          key: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+          script: |
+            DB_DIR="/pyra-apps/${{ secrets.PYRA_APP_NAME }}/databases"
+            DB_FILE="$DB_DIR/prod.sqlite3"
+            # Create the database directory if it does not exist
+            if [ ! -d "$DB_DIR" ]; then
+                echo "Creating database directory at $DB_DIR"
+                mkdir -p "$DB_DIR"
+            fi
+            # Create the SQLite database file if it does not exist
+            if [ ! -f "$DB_FILE" ]; then
+                echo "Creating SQLite database file at $DB_FILE"
+                touch "$DB_FILE"
+            fi
+            # Ensure the correct ownership of the database directory and file
+            chown -R 1001:1001 "$DB_DIR"
+
+      - name: Ensure Docker Network Exists
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.PYRA_SERVER_IP }}
+          username: ${{ secrets.PYRA_SSH_USERNAME }}
+          key: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+          script: |
+            if ! docker network ls --filter name=^pyra-app-network$ --format '{{.Name}}' | grep -w "pyra-app-network" > /dev/null 2>&1; then
+                echo "Docker network 'pyra-app-network' does not exist. Creating it now..."
+                docker network create pyra-app-network
+            else
+                echo "Docker network 'pyra-app-network' already exists. Skipping creation."
+            fi
+
+      - name: Copy SQLite database to build context
+        run: |
+          mkdir -p databases
+          scp -o StrictHostKeyChecking=no -r ${{ secrets.PYRA_SSH_USERNAME }}@${{ secrets.PYRA_SERVER_IP }}:/pyra-apps/${{ secrets.PYRA_APP_NAME }}/databases/prod.sqlite3 ./databases/prod.sqlite3
+        env:
+          PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+
+      - name: Securely copy SQLite database from production server
+        run: |
+          mkdir -p databases
+          scp ${{ secrets.PYRA_SSH_USERNAME }}@${{ secrets.PYRA_SERVER_IP }}:/pyra-apps/${{ secrets.PYRA_APP_NAME }}/databases/prod.sqlite3 ./databases/prod.sqlite3
+
+      - name: Setting up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Create .env file
+        run: |
+          echo "NODE_ENV=production" >> .env
+          echo "PYRA_DOMAIN=${{ secrets.PYRA_DOMAIN }}" >> .env
+          echo "PYRA_SSL_EMAIL=${{ secrets.PYRA_SSL_EMAIL }}" >> .env
+          echo "PYRA_APP_NAME=${{ secrets.PYRA_APP_NAME }}" >> .env
+          echo "DOCKER_IMAGE_NAME=${{ secrets.PYRA_APP_NAME }}:${{ github.sha }}" >> .env
+          echo "DOCKER_IMAGE_FILE_NAME=${{ secrets.PYRA_APP_NAME }}_${{ github.sha }}.tar" >> .env
+
+      - name: Build Docker image
+        env:
+          PYRA_APP_NAME: ${{ secrets.PYRA_APP_NAME }}
+          NODE_ENV: production
+        run: |
+          docker build --build-arg DB_FILE=./databases/prod.sqlite3 --build-arg NODE_ENV=production --target builder --no-cache -t ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} .
+          docker build --build-arg DB_FILE=./databases/prod.sqlite3 --build-arg NODE_ENV=production -t ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} .
+          docker save ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} > ${{secrets.PYRA_APP_NAME}}_${{ github.sha }}.tar
+
+      - name: Clean up test database
+        run: |
+          dd if=/dev/urandom of=./databases/prod.sqlite3 bs=1M count=10
+          rm -f ./databases/prod.sqlite3
+          rm -rf ./databases
+        shell: bash
+
+      - name: Verify .env file creation
+        run: |
+          cat .env
+
+      - name: List files in the current directory
+        run: ls -la
+
+      - name: Deploy to Server
+        uses: easingthemes/ssh-deploy@main
+        with:
+          PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+          ARGS: "-rlgoDzvc -i --mkpath"
+          REMOTE_HOST: ${{ secrets.PYRA_SERVER_IP }}
+          REMOTE_USER: ${{ secrets.PYRA_SSH_USERNAME }}
+          TARGET: "/pyra-apps/${{secrets.PYRA_APP_NAME}}/releases/${{ github.sha}}"
+          EXCLUDE: "/actions/, /node_modules/, /.git, /.secrets"
+          SCRIPT_BEFORE: |
+            whoami
+            ls -al
+
+      - name: Deploy Next.js Application
+        uses: appleboy/ssh-action@master
+        env:
+          DOCKER_IMAGE_FILE_NAME: ${{secrets.PYRA_APP_NAME}}_${{ github.sha }}.tar
+          DOCKER_IMAGE_NAME: ${{secrets.PYRA_APP_NAME}}:${{ github.sha }}
+          PYRA_DOMAIN: ${{ secrets.PYRA_DOMAIN }}
+        with:
+          host: ${{ secrets.PYRA_SERVER_IP }}
+          username: ${{ secrets.PYRA_SSH_USERNAME }}
+          key: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+          script: |
+            cd /pyra-apps/${{ secrets.PYRA_APP_NAME }}/releases/${{ github.sha }}
+
+
+
+            # Run pre-deploy hook if it exists
+            if [ -f .pyra/pre_deploy.sh ]; then
+              echo "Running pre-deploy hook..."
+              bash .pyra/pre_deploy.sh
+            fi
+
+            # Load the Docker image
+            echo "Loading Docker image..."
+            docker load < ./${{ secrets.PYRA_APP_NAME }}_${{ github.sha }}.tar
+
+            # Run migrations if migrate.sh exists
+            if [ -f .pyra/migrate.sh ]; then
+              echo "Running migrations..."
+              docker run --rm \
+                --mount type=bind,source=/pyra-apps/${{ secrets.PYRA_APP_NAME }}/databases,target=/app/databases,readonly=false \
+                --mount type=bind,source=$(pwd)/.pyra,target=/app/.pyra,readonly=false \
+                ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} \
+                /bin/sh -c 'bash /app/.pyra/migrate.sh'
+            fi
+
+            # Run pre-run hook if it exists
+            if [ -f .pyra/pre_run.sh ]; then
+              echo "Running pre-run hook..."
+              docker run --rm \
+                --mount type=bind,source=/pyra-apps/${{ secrets.PYRA_APP_NAME }}/databases,target=/app/databases,readonly=false \
+                --mount type=bind,source=$(pwd)/.pyra,target=/app/.pyra,readonly=false \
+                ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} \
+                /bin/sh -c 'bash /app/.pyra/pre_run.sh'
+            fi
+
+            # Start the application
+            echo "Starting application containers..."
+            if ! docker compose -p ${{ secrets.PYRA_APP_NAME }} -f docker-compose.yml up -d --force-recreate --scale pyra-app=2; then
+                echo "Error: Docker Compose failed to start the application containers."
+                exit 1
+            fi
+
+            # Run post-run hook if it exists
+            if [ -f .pyra/post_run.sh ]; then
+              echo "Running post-run hook..."
+              docker run --rm \
+                -v /pyra-apps/${{ secrets.PYRA_APP_NAME }}/databases:/app/databases \
+                -v $(pwd)/.pyra:/app/.pyra \
+                ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} \
+                /bin/sh -c 'bash /app/.pyra/post_run.sh'
+            fi
+
+            # Run post-deploy hook if it exists
+            if [ -f .pyra/post_deploy.sh ]; then
+              echo "Running post-deploy hook..."
+              bash .pyra/post_deploy.sh
+            fi
+
+      - name: Prune old releases and docker images
+        uses: appleboy/ssh-action@master
+        env:
+          DOCKER_IMAGE_FILE_NAME: ${{secrets.PYRA_APP_NAME}}_${{ github.sha }}.tar
+          DOCKER_IMAGE_NAME: ${{secrets.PYRA_APP_NAME}}:${{ github.sha }}
+          PYRA_DOMAIN: ${{ secrets.PYRA_DOMAIN }}
+          PYRA_APP_NAME: ${{ secrets.PYRA_APP_NAME }}
+        with:
+          host: ${{ secrets.PYRA_SERVER_IP }}
+          username: ${{ secrets.PYRA_SSH_USERNAME }}
+          key: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+          script: |
+            cd /pyra-apps/${{ secrets.PYRA_APP_NAME }}/releases
+            ls -t | tail -n +9 | xargs rm -r
+            docker image prune -a -f

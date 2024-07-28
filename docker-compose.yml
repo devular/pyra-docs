@@ -1,0 +1,56 @@
+name: 'pyra-${APP_NAME}'
+networks:
+    pyra-app-network:
+        external: true
+services:
+    traefik:
+        container_name: pyra-router-traefik
+        image: traefik:v3.0
+        security_opt:
+            - no-new-privileges:true
+        restart: unless-stopped
+        command:
+            - --api.insecure=true
+            - --providers.docker
+            - --entrypoints.web.address=:80
+            - --entrypoints.websecure.address=:443
+            - --certificatesresolvers.pyra-cert-resolver.acme.httpchallenge.entrypoint=web
+            - --certificatesresolvers.pyra-cert-resolver.acme.tlschallenge=true
+            - --certificatesresolvers.pyra-cert-resolver.acme.email=${EMAIL}
+            - --certificatesresolvers.pyra-cert-resolver.acme.storage=/letsencrypt/acme.json
+        ports:
+            - '80:80'
+            - '443:443'
+            - '8080:8080' # Traefik dashboard
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./letsencrypt:/letsencrypt
+            - /pyra-apps/${APP_NAME}/letsencrypt:/letsencrypt
+        networks:
+            - pyra-app-network
+
+    pyra-app:
+        image: ${DOCKER_IMAGE_NAME}
+        pull_policy: 'never'
+        platform: linux/amd64
+        labels:
+            - 'traefik.enable=true'
+            - 'traefik.http.routers.${APP_NAME}.rule=Host(`${DOMAIN}`)'
+            - 'traefik.http.routers.${APP_NAME}.entrypoints=web'
+            - 'traefik.http.routers.${APP_NAME}.middlewares=pyra-redirectscheme'
+            - 'traefik.http.middlewares.pyra-redirectscheme.redirectscheme.scheme=https'
+            - 'traefik.http.middlewares.pyra-redirectscheme.redirectscheme.port=443'
+            - 'traefik.http.services.${APP_NAME}.loadbalancer.server.port=3000'
+            - 'traefik.http.routers.${APP_NAME}-secure.entrypoints=websecure'
+            - 'traefik.http.routers.${APP_NAME}-secure.rule=Host(`${DOMAIN}`)'
+            - 'traefik.http.routers.${APP_NAME}-secure.tls.certresolver=pyra-cert-resolver'
+        depends_on:
+            - traefik
+        networks:
+            - pyra-app-network
+        volumes:
+            - type: bind
+              source: /pyra-apps/${APP_NAME}/databases
+              target: /databases
+              bind:
+                  propagation: rshared

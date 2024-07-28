@@ -2,15 +2,15 @@
 service: server
 image: <%= ENV.fetch('DOCKER_IMAGE_NAME') %>
 servers:
-    web:
-        hosts: <%= ENV.fetch('SERVER_IP').split(',') %>
+  web:
+    hosts: <%= ENV.fetch('SERVER_IP').split(',') %>
 registry:
-    username:
-        - KAMAL_REGISTRY_USERNAME
-    password:
-        - KAMAL_REGISTRY_PASSWORD
+  username:
+    - KAMAL_REGISTRY_USERNAME
+  password:
+    - KAMAL_REGISTRY_PASSWORD
 volumes:
-    - 'data:/data'
+  - "data:/data"
 ssh:
-    user: <%= ENV.fetch('SSH_USERNAME') %>
-    key_data: [<%= ENV.fetch('SSH_PRIVATE_KEY') %>]
+  user: <%= ENV.fetch('SSH_USERNAME') %>
+  key_data: [<%= ENV.fetch('SSH_PRIVATE_KEY') %>]

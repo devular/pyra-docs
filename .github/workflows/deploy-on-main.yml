@@ -142,10 +142,6 @@ jobs:
           PYRA_SSH_PASSPHRASE: ${{ secrets.PYRA_SSH_PASSPHRASE }}
           PYRA_SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
 
-      - name: Run Kamal Server Bootstrap to install docker
-        run: |
-          /bin/bash -c "kamal server bootstrap"
-
       - name: Initialize Let's Encrypt Certificate Directory
         uses: appleboy/ssh-action@master
         with:

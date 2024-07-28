@@ -19,7 +19,6 @@ WORKDIR /app
 
 COPY package.json ./
 COPY pnpm-lock.yaml ./
-COPY .pyra /app/.pyra
 RUN pnpm install --frozen-lockfile
 
 FROM base AS builder

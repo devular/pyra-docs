@@ -8,6 +8,11 @@ FROM base AS build
 # Disabling Telemetry
 ENV NEXT_TELEMETRY_DISABLED 1
 RUN apk add --no-cache libc6-compat curl python3 py3-pip
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends libc6-compat curl python3 python3-pip && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 
 FROM base AS deps
 WORKDIR /app

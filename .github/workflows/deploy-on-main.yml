@@ -12,6 +12,7 @@ env:
 
 jobs:
   debug-ssh-key:
+    environment: docs.pyra.run production
     runs-on: ubuntu-latest
     steps:
       - name: Validate key structure

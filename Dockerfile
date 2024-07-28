@@ -53,7 +53,7 @@ RUN    useradd -m -u ${UID} -g nodejs nextjs
 #COPY --from=builder /app/drizzle ./drizzle
 #COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 #COPY --from=builder /app/src/models ./src/models
-COPY --from=builder /app/public ./public
+#COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
 RUN mkdir .next
 RUN mkdir -p /data && chown -R nextjs:nodejs /data

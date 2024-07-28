@@ -196,7 +196,7 @@ jobs:
       - name: Deploy to Server
         uses: easingthemes/ssh-deploy@main
         with:
-          PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.PYRA_SSH_PRIVATE_KEY }}
           ARGS: "-rlgoDzvc -i --mkpath"
           REMOTE_HOST: ${{ secrets.PYRA_SERVER_IP }}
           REMOTE_USER: ${{ secrets.PYRA_SSH_USERNAME }}

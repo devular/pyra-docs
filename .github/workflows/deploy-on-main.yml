@@ -225,7 +225,8 @@ jobs:
           PYRA_APP_NAME: ${{ secrets.PYRA_APP_NAME }}
           NODE_ENV: production
         run: |
-          docker build DB_FILE=./databases/prod.sqlite3 --build-arg NODE_ENV=production -t ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} .
+          docker build --build-arg NODE_ENV=production --target builder --no-cache -t ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} .
+          docker build --build-arg NODE_ENV=production -t ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} .
           docker save ${{secrets.PYRA_APP_NAME}}:${{ github.sha }} > ${{secrets.PYRA_APP_NAME}}_${{ github.sha }}.tar
 
       - name: Clean up test database
